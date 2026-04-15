@@ -1,0 +1,13 @@
+{
+  "background_color": "#020617",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "PRINCE OS",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "PRINCE",
+  "start_url": "/",
+  "theme_color": "#020617",
+  "id": "prince-os",
+  "description": "study and productive app"
+}
