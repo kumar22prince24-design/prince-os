@@ -1,0 +1,401 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<title>PRINCE OS</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+/* GLOBAL */
+body {
+  margin:0;
+  font-family:'Segoe UI', sans-serif;
+  display:flex;
+  height:100vh;
+  background:#020617;
+  color:white;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width:220px;
+  padding:20px;
+  background:rgba(255,255,255,0.05);
+}
+.menu div {
+  margin:20px 0;
+  cursor:pointer;
+  color:#94a3b8;
+}
+.menu div:hover { color:#38bdf8; }
+
+/* MAIN */
+.main {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+
+/* SCREENS */
+.screen {
+  display:none !important;
+  flex:1;
+  justify-content:center;
+  align-items:center;
+}
+.screen.active {
+  display:flex !important;
+}
+
+/* HOME */
+.home { text-align:center; }
+#quote {
+  font-size:48px;
+  max-width:700px;
+  background:linear-gradient(90deg,#38bdf8,#818cf8);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+/* TASKS */
+.tasks { display:flex; width:100%; height:100%; }
+.left { flex:1; padding:20px; overflow-y:auto; }
+.right { width:300px; padding:20px; text-align:center; }
+
+.task {
+  margin-top:12px;
+  padding:12px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.05);
+  display:flex;
+  justify-content:space-between;
+}
+.done { opacity:0.5; text-decoration:line-through; }
+
+/* CHART */
+.chartBox { position:relative; width:200px; margin:auto; }
+#percentText {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+}
+
+/* FOCUS */
+.focus {
+  background: radial-gradient(circle at center, #020617 40%, #000 100%);
+}
+
+.timerCircle {
+  width:240px;
+  height:240px;
+  border-radius:50%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin:30px auto;
+  border:2px solid rgba(56,189,248,0.4);
+}
+
+.timerCircle span {
+  font-size:52px;
+  color:#38bdf8;
+}
+
+/* INPUT */
+#customTime {
+  width:150px;
+  padding:12px;
+  text-align:center;
+  border-radius:12px;
+  background:rgba(56,189,248,0.1);
+  border:1px solid rgba(56,189,248,0.4);
+  color:#38bdf8;
+}
+
+/* BUTTONS */
+.focusButtons button {
+  margin:5px;
+}
+
+input, select {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:#0f172a;
+  color:white;
+}
+
+button {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:#2563eb;
+  color:white;
+  cursor:pointer;
+}
+
+/* FULLSCREEN TIMER */
+.focusFull {
+  display:none;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:black;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+}
+
+.bigTimer {
+  font-size:120px;
+  color:white;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+  <h2>PRINCE OS</h2>
+  <div class="menu">
+    <div onclick="show('home')">Home</div>
+    <div onclick="show('tasks')">Tasks</div>
+    <div onclick="show('focus')">Focus</div>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- HOME -->
+<div id="home" class="screen active home">
+  <h1 id="quote"></h1>
+</div>
+
+<!-- TASKS -->
+<div id="tasks" class="screen tasks">
+  <div class="left">
+    <h2>Tasks</h2>
+
+    <input id="taskInput" placeholder="Add task">
+    <select id="repeatType">
+      <option value="none">No Repeat</option>
+      <option value="daily">Daily</option>
+    </select>
+    <button onclick="addTask()">Add</button>
+
+    <div id="taskList"></div>
+  </div>
+
+  <div class="right">
+    <div class="chartBox">
+      <canvas id="chart"></canvas>
+      <div id="percentText">0%</div>
+    </div>
+
+    <h3>🔥 Streak: <span id="streak">0</span></h3>
+  </div>
+</div>
+
+<!-- FOCUS -->
+<div id="focus" class="screen focus">
+
+  <div id="focusUI" style="text-align:center;">
+
+    <input id="customTime" type="number" placeholder="Set Minutes">
+
+    <div class="timerCircle">
+      <span id="time">00:00</span>
+    </div>
+
+    <div class="focusButtons">
+      <button onclick="startFocus()">Start</button>
+      <button onclick="pauseFocus()">Pause</button>
+      <button onclick="resetFocus()">Reset</button>
+    </div>
+
+  </div>
+
+  <div id="focusFull" class="focusFull">
+    <div class="bigTimer" id="bigTime">00:00</div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+
+// NAVIGATION
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// QUOTE
+let quotes = [
+  "No one is coming. Stop waiting.",
+  "Discipline or regret. Choose.",
+  "Do it now.",
+  "No excuses."
+];
+document.getElementById("quote").innerText =
+  quotes[Math.floor(Math.random()*quotes.length)];
+
+// LOAD DATA
+let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+let done = 0;
+
+// TASKS
+function addTask(){
+  let val = taskInput.value.trim();
+  if(!val) return;
+
+  tasks.push({text:val, done:false});
+  taskInput.value="";
+  saveData();
+  render();
+}
+
+function render(){
+  let html=""; done=0;
+
+  tasks.forEach((t,i)=>{
+    if(t.done) done++;
+
+    html+=`
+    <div class="task ${t.done?'done':''}">
+      ${t.text}
+      <button onclick="complete(${i})">✔</button>
+    </div>`;
+  });
+
+  taskList.innerHTML=html;
+  updateChart();
+  saveData();
+}
+
+function complete(i){
+  tasks[i].done=true;
+  render();
+}
+
+function saveData(){
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+// TIMER
+let interval = null;
+let timeLeft = 0;
+let isRunning = false;
+
+function startFocus(){
+
+  let input = document.getElementById("customTime").value;
+
+  if(!input || isNaN(input) || input <= 0){
+    alert("Enter time first ⏱️");
+    return;
+  }
+
+  timeLeft = parseInt(input) * 60;
+  isRunning = true;
+
+  document.querySelector(".sidebar").style.display = "none";
+  document.getElementById("focusUI").style.display = "none";
+  document.getElementById("focusFull").style.display = "flex";
+
+  clearInterval(interval);
+
+  interval = setInterval(()=>{
+
+    let m = Math.floor(timeLeft / 60);
+    let s = timeLeft % 60;
+
+    let formatted = m + ":" + (s<10 ? "0"+s : s);
+
+    document.getElementById("time").innerText = formatted;
+    document.getElementById("bigTime").innerText = formatted;
+
+    if(timeLeft <= 0){
+      clearInterval(interval);
+      isRunning = false;
+      alert("Focus Complete 🔥");
+      exitFocus();
+      return;
+    }
+
+    timeLeft--;
+
+  },1000);
+}
+
+function pauseFocus(){
+  clearInterval(interval);
+  isRunning = false;
+}
+
+function resetFocus(){
+  clearInterval(interval);
+  isRunning = false;
+  timeLeft = 0;
+  document.getElementById("time").innerText = "00:00";
+  document.getElementById("bigTime").innerText = "00:00";
+}
+
+function exitFocus(){
+  document.querySelector(".sidebar").style.display = "block";
+  document.getElementById("focusUI").style.display = "block";
+  document.getElementById("focusFull").style.display = "none";
+}
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape"){
+    exitFocus();
+  }
+});
+
+// CHART
+let ctx = document.getElementById("chart").getContext("2d");
+
+let chart = new Chart(ctx, {
+  type:'doughnut',
+  data:{datasets:[{data:[0,1]}]},
+  options:{plugins:{legend:{display:false}}}
+});
+
+function updateChart(){
+  let total=tasks.length;
+  let percent=total?Math.floor(done/total*100):0;
+
+  chart.data.datasets[0].data=[done,total-done];
+  chart.update();
+
+  percentText.innerText=percent+"%";
+}
+
+// STREAK
+let today = new Date().toDateString();
+let lastDate = localStorage.getItem("lastDate");
+let streak = parseInt(localStorage.getItem("streak")) || 0;
+
+if(lastDate !== today){
+  if(tasks.length > 0){
+    streak++;
+  }
+  localStorage.setItem("streak", streak);
+  localStorage.setItem("lastDate", today);
+}
+
+document.getElementById("streak").innerText = streak;
+
+// INIT
+render();
+
+</script>
+
+</body>
+</html>
